@@ -1,6 +1,7 @@
 <?php
 ob_start();
 $pageTitle = 'Dashboard Vendeur';
+$bodyClass = 'dashboard-page';
 require_once __DIR__ . '/includes/header.php';
 requireSeller();
 
@@ -1216,9 +1217,29 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
 
         <?php elseif ($section === 'abonnement'): ?>
         <?php
+        // Traitement "J'ai déjà payé"
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['notify_payment'])) {
+            // Vérifier qu'il n'y a pas déjà une demande en attente
+            $alreadyPending = $pdo->prepare("SELECT id FROM subscriptions WHERE store_id = ? AND status = 'pending'");
+            $alreadyPending->execute([$storeId]);
+            if (!$alreadyPending->fetch()) {
+                $pdo->prepare("INSERT INTO subscriptions (store_id, payment_method, amount, status, created_at) VALUES (?, 'wave', ?, 'pending', NOW())")
+                    ->execute([$storeId, SUBSCRIPTION_PRICE]);
+                setFlash('success', 'Votre paiement a été signalé. L\'admin va valider sous 24h.');
+            } else {
+                setFlash('info', 'Vous avez déjà une demande en attente de validation.');
+            }
+            redirect(SITE_URL . '/dashboard.php?section=abonnement');
+        }
+
         $confirmedPays = $pdo->prepare("SELECT * FROM subscriptions WHERE store_id = ? AND status='confirmed' ORDER BY created_at DESC LIMIT 5");
         $confirmedPays->execute([$storeId]);
         $confirmedPays = $confirmedPays->fetchAll();
+
+        // Vérifier si une demande est déjà en attente
+        $pendingSub = $pdo->prepare("SELECT * FROM subscriptions WHERE store_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1");
+        $pendingSub->execute([$storeId]);
+        $pendingSub = $pendingSub->fetch();
         ?>
 
         <div class="dashboard-header">
@@ -1273,21 +1294,61 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                     <span style="background:#00B4E6;color:white;border-radius:8px;padding:.3rem .6rem;font-size:.95rem">📱</span>
                     <div>
                         <div style="font-weight:800;font-size:1rem;color:var(--dark)">Paiement par Wave</div>
-                        <div style="font-size:.8rem;color:var(--gray-500);margin-top:.1rem">Scannez le QR code avec l'application Wave</div>
+                        <div style="font-size:.8rem;color:var(--gray-500);margin-top:.1rem">3 000 FCFA / mois</div>
                     </div>
                 </div>
 
-                <div style="padding:1.5rem;display:flex;justify-content:center">
-                    <div style="text-align:center">
+                <div style="padding:1.5rem">
+
+                    <?php if ($pendingSub): ?>
+                    <!-- Demande déjà envoyée -->
+                    <div style="text-align:center;padding:2rem 1rem">
+                        <div style="font-size:3rem;margin-bottom:1rem">⏳</div>
+                        <div style="font-weight:800;font-size:1.1rem;color:var(--dark);margin-bottom:.5rem">Paiement en cours de validation</div>
+                        <div style="font-size:.85rem;color:var(--gray-500);max-width:300px;margin:0 auto">
+                            Votre paiement a été signalé le <?= date('d/m/Y à H:i', strtotime($pendingSub['created_at'])) ?>.<br>
+                            L'admin validera votre abonnement sous 24h.
+                        </div>
+                    </div>
+
+                    <?php else: ?>
+                    <!-- Étape 1 : Bouton Payer -->
+                    <div id="stepPay" style="text-align:center;padding:2rem 1rem">
+                        <div style="font-size:3.5rem;margin-bottom:1rem">💳</div>
+                        <div style="font-weight:800;font-size:1.1rem;color:var(--dark);margin-bottom:.5rem">Souscrire à l'abonnement</div>
+                        <div style="font-size:.85rem;color:var(--gray-500);margin-bottom:1.75rem">
+                            Cliquez sur le bouton pour afficher le QR code Wave et effectuer votre paiement.
+                        </div>
+                        <button onclick="showQR()" style="background:linear-gradient(135deg,#00B4E6,#0077C8);color:white;border:none;padding:.9rem 2.5rem;border-radius:50px;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 4px 18px rgba(0,180,230,.35)">
+                            💳 Payer maintenant — 3 000 FCFA
+                        </button>
+                    </div>
+
+                    <!-- Étape 2 : QR Code + bouton confirmation -->
+                    <div id="stepQR" style="display:none;text-align:center">
+                        <div style="font-size:.85rem;font-weight:700;color:#00B4E6;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.05em">
+                            📱 Scannez avec l'app Wave
+                        </div>
                         <div style="border-radius:16px;overflow:hidden;width:260px;box-shadow:0 6px 24px rgba(0,180,230,.3);margin:0 auto">
                             <iframe src="<?= SITE_URL ?>/assets/images/wave_qr.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitH"
                                     style="width:260px;height:340px;border:none;display:block"
                                     title="QR Code Wave"></iframe>
                         </div>
-                        <div style="margin-top:1rem;font-size:.82rem;color:var(--gray-500)">
-                            Votre abonnement sera activé sous 24h après réception du paiement.
+                        <div style="margin-top:1.25rem;font-size:.82rem;color:var(--gray-500);margin-bottom:1.5rem">
+                            Après le paiement, cliquez sur le bouton ci-dessous pour notifier l'admin.
                         </div>
+                        <form method="POST" onsubmit="return confirm('Confirmez-vous avoir effectué le paiement de 3 000 FCFA par Wave ?')">
+                            <input type="hidden" name="notify_payment" value="1">
+                            <button type="submit" style="background:linear-gradient(135deg,#10B981,#059669);color:white;border:none;padding:.85rem 2rem;border-radius:50px;font-weight:800;font-size:.95rem;cursor:pointer;box-shadow:0 4px 16px rgba(16,185,129,.35)">
+                                ✅ J'ai déjà payé — Notifier l'admin
+                            </button>
+                        </form>
+                        <button onclick="hideQR()" style="background:none;border:none;color:var(--gray-400);font-size:.82rem;cursor:pointer;margin-top:.75rem;text-decoration:underline">
+                            Annuler
+                        </button>
                     </div>
+                    <?php endif; ?>
+
                 </div>
             </div>
         </div>
@@ -1553,6 +1614,16 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
 
 <script>
 const siteUrl = "<?= SITE_URL ?>";
+
+// ---- Abonnement : QR Code ----
+function showQR() {
+    document.getElementById('stepPay').style.display = 'none';
+    document.getElementById('stepQR').style.display  = 'block';
+}
+function hideQR() {
+    document.getElementById('stepQR').style.display  = 'none';
+    document.getElementById('stepPay').style.display = 'block';
+}
 
 // ---- Onglets ----
 function switchTab(tabId, btn) {

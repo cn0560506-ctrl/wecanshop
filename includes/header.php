@@ -21,7 +21,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
     <link rel="stylesheet" href="<?= SITE_URL ?>/assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <link rel="icon" href="<?= SITE_URL ?>/assets/images/favicon.svg" type="image/svg+xml">
 </head>
-<body>
+<body class="<?= $bodyClass ?? '' ?>">
 
 <nav class="navbar">
     <div class="container navbar-inner">
