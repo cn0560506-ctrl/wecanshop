@@ -1,0 +1,6 @@
+<FilesMatch "\.(jpg|jpeg|png|webp|gif|mp4|webm|mov|avi)$">
+    Allow from all
+</FilesMatch>
+<FilesMatch "\.php$">
+    Deny from all
+</FilesMatch>
