@@ -1567,6 +1567,12 @@ textarea.form-control { resize: vertical; min-height: 100px; }
     overflow-y: auto;
 }
 
+/* Dashboard plein écran — navbar cachée */
+body.dashboard-page .navbar { display: none; }
+body.dashboard-page .page-content { padding-top: 0; }
+body.dashboard-page .dashboard-layout { min-height: 100vh; }
+body.dashboard-page .dashboard-sidebar { top: 0; height: 100vh; }
+
 .sidebar-section-label {
     font-size: .7rem;
     font-weight: 700;
