@@ -43,20 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name    = trim($_POST['customer_name'] ?? '');
     $phone   = trim($_POST['customer_phone'] ?? '');
     $address = trim($_POST['delivery_address'] ?? '');
-    $city    = trim($_POST['city'] ?? '');
     $payment = $_POST['payment_method'] ?? 'cash';
     $notes   = trim($_POST['notes'] ?? '');
 
-    if (!$name || !$phone || !$address || !$city) {
+    if (!$name || !$phone || !$address) {
         $error = 'Veuillez remplir tous les champs obligatoires.';
     } else {
         $userId = $_SESSION['user_id'] ?? null;
 
         $pdo->prepare("
             INSERT INTO orders (user_id, customer_name, customer_phone,
-                                delivery_address, city, total, delivery_fee, payment_method, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ")->execute([$userId, $name, $phone, $address, $city, $total, $deliveryFee, $payment, $notes]);
+                                delivery_address, total, delivery_fee, payment_method, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ")->execute([$userId, $name, $phone, $address, $total, $deliveryFee, $payment, $notes]);
 
         $orderId = $pdo->lastInsertId();
 
@@ -88,6 +87,7 @@ $userEmail = $_SESSION['user_email'] ?? '';
 $userName = $_SESSION['user_name'] ?? '';
 ?>
 
+<style>html,body{overflow-x:hidden;}</style>
 <div class="page-header">
     <div class="container">
         <div class="breadcrumb">
@@ -117,7 +117,7 @@ $userName = $_SESSION['user_name'] ?? '';
         <div class="alert alert-error"><?= escape($error) ?></div>
     <?php endif; ?>
 
-    <form method="POST" action="<?= $isBuyNow ? '?buy_now=' . $buyNowId : '' ?>">
+    <form method="POST" action="<?= $isBuyNow ? '?buy_now=' . $buyNowId : '' ?>" id="checkoutForm">
         <div class="checkout-layout">
             <!-- Form -->
             <div>
@@ -142,17 +142,6 @@ $userName = $_SESSION['user_name'] ?? '';
                             <input type="tel" name="customer_phone" class="form-control"
                                    value="<?= escape($_POST['customer_phone'] ?? '') ?>"
                                    placeholder="+221 77 000 0000" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Ville *</label>
-                            <select name="city" class="form-select" required>
-                                <option value="">Sélectionner une ville</option>
-                                <?php
-                                $cities = ['Dakar', 'Thiès', 'Kaolack', 'Saint-Louis', 'Ziguinchor', 'Touba', 'Mbour', 'Rufisque', 'Conakry', 'Abidjan', 'Bamako'];
-                                foreach ($cities as $city): ?>
-                                <option value="<?= $city ?>" <?= ($_POST['city'] ?? '') === $city ? 'selected' : '' ?>><?= $city ?></option>
-                                <?php endforeach; ?>
-                            </select>
                         </div>
                     </div>
 
@@ -202,10 +191,6 @@ $userName = $_SESSION['user_name'] ?? '';
                         <span><?= formatPrice($total) ?></span>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" style="width:100%;padding:.85rem;font-size:1rem;margin-top:1rem">
-                        🔒 Confirmer la commande — <?= formatPrice($total) ?>
-                    </button>
-
                     <p style="font-size:.78rem;color:var(--gray-500);text-align:center;margin-top:.75rem">
                         En cliquant, vous acceptez nos conditions générales de vente.
                     </p>
@@ -214,6 +199,20 @@ $userName = $_SESSION['user_name'] ?? '';
         </div>
     </form>
 </div>
+
+<!-- Bouton Commander flottant -->
+<div style="position:fixed;bottom:0;left:0;right:0;width:100%;z-index:999;background:white;border-top:1px solid #E2E8F0;padding:.85rem 1.25rem;box-shadow:0 -4px 20px rgba(0,0,0,.1);-webkit-transform:translateZ(0);transform:translateZ(0);box-sizing:border-box;">
+    <div style="max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:1rem">
+        <div style="font-size:.92rem;color:var(--gray-500)">
+            Total : <strong style="color:var(--primary);font-size:1.05rem"><?= formatPrice($total) ?></strong>
+        </div>
+        <button type="submit" form="checkoutForm"
+                style="background:linear-gradient(135deg,#7C3AED,#EC4899);color:white;border:none;padding:.85rem 2rem;border-radius:50px;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 4px 18px rgba(124,58,237,.35);white-space:nowrap">
+            🔒 Confirmer la commande
+        </button>
+    </div>
+</div>
+<div style="height:80px"></div>
 
 <script>const siteUrl = "<?= SITE_URL ?>";</script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

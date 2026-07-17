@@ -47,8 +47,8 @@ if ($orderId) {
                 <strong><?= ucfirst(str_replace('_', ' ', $order['payment_method'])) ?></strong>
             </div>
             <div style="display:flex;justify-content:space-between;padding:.5rem 0;font-size:.9rem">
-                <span style="color:var(--gray-500)">Livraison à</span>
-                <strong><?= escape($order['city']) ?></strong>
+                <span style="color:var(--gray-500)">Livraison</span>
+                <strong style="text-align:right;max-width:60%"><?= escape($order['delivery_address'] ?? '') ?></strong>
             </div>
         </div>
         <?php endif; ?>

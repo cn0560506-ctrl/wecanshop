@@ -8,6 +8,19 @@ require_once __DIR__ . '/functions.php';
 
 $cartCount = getCartCount();
 $currentPage = basename($_SERVER['PHP_SELF']);
+
+// Nom de la boutique du vendeur connecté
+$navBrandName = 'WecanShop';
+$navBrandLetter = 'W';
+if (isSeller() && !isAdmin() && isset($_SESSION['user_id'])) {
+    $storeNameStmt = $pdo->prepare("SELECT name FROM stores WHERE user_id = ? LIMIT 1");
+    $storeNameStmt->execute([$_SESSION['user_id']]);
+    $storeName = $storeNameStmt->fetchColumn();
+    if ($storeName) {
+        $navBrandName   = $storeName;
+        $navBrandLetter = strtoupper(mb_substr($storeName, 0, 1, 'UTF-8'));
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -26,8 +39,8 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 <nav class="navbar">
     <div class="container navbar-inner">
         <a href="<?= SITE_URL ?>/index.php" class="navbar-brand">
-            <span class="brand-icon">W</span>
-            <span>WecanShop</span>
+            <span class="brand-icon"><?= $navBrandLetter ?></span>
+            <span><?= escape($navBrandName) ?></span>
         </a>
 
         <div class="navbar-links">
@@ -40,15 +53,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         </div>
 
         <div class="navbar-actions">
-            <a href="<?= SITE_URL ?>/cart.php" class="cart-btn">
-                <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
-                </svg>
-                <?php if ($cartCount > 0): ?>
-                    <span class="cart-badge"><?= $cartCount ?></span>
-                <?php endif; ?>
-            </a>
-
             <?php if (isLoggedIn()): ?>
                 <div class="user-menu">
                     <button class="user-btn" onclick="toggleUserMenu()">

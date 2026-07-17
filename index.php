@@ -34,7 +34,7 @@ $totalOrders = $pdo->query("SELECT COUNT(*) FROM orders WHERE status='delivered'
                         <div class="hero-stat-label">Produits disponibles</div>
                     </div>
                     <div>
-                        <div class="hero-stat-num counter" data-target="<?= max(500000, $totalOrders * 1000) ?>" data-suffix="+"><?= number_format($totalOrders * 1000, 0, ',', ' ') ?>+</div>
+                        <div class="hero-stat-num counter" data-target="500" data-suffix="+">500+</div>
                         <div class="hero-stat-label">Clients satisfaits</div>
                     </div>
                 </div>
@@ -44,10 +44,10 @@ $totalOrders = $pdo->query("SELECT COUNT(*) FROM orders WHERE status='delivered'
                 <div class="hero-photo-wrap">
                     <!-- Diaporama 2 photos -->
                     <div class="hero-slides">
-                        <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=560&h=680&fit=crop&q=85"
-                             alt="Vendeur WecanShop" class="hero-slide hero-slide-1">
-                        <img src="https://images.unsplash.com/photo-1531384441138-2736e62e0919?w=560&h=680&fit=crop&q=85"
-                             alt="Vendeur WecanShop" class="hero-slide hero-slide-2">
+                        <img src="https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=560&h=680&fit=crop&q=85"
+                             alt="Vente en ligne" class="hero-slide hero-slide-1">
+                        <img src="https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=560&h=680&fit=crop&q=85"
+                             alt="Vendeur en ligne" class="hero-slide hero-slide-2">
                     </div>
                     <!-- Badge flottant haut-droite -->
                     <div class="hero-float hero-float-tr">

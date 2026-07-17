@@ -41,3 +41,12 @@ try {
     $pdo->exec("UPDATE users SET email_verified = 1 WHERE email_verified = 0");
 } catch(Exception $e) {}
 try { $pdo->exec("ALTER TABLE users ADD COLUMN email_token VARCHAR(64) DEFAULT NULL"); } catch(Exception $e) {}
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS product_images (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        product_id INT NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        sort_order TINYINT DEFAULT 0,
+        INDEX idx_product_id (product_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch(Exception $e) {}

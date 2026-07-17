@@ -175,6 +175,10 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
             Accueil
         </a>
+        <a href="<?= SITE_URL ?>/logout.php" class="sidebar-link" style="margin-top:.5rem;color:#F87171;border-top:1px solid rgba(255,255,255,.08);padding-top:.75rem">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Déconnexion
+        </a>
 
         <?php if (isAdmin()): ?>
         <span class="sidebar-section-label">Admin</span>
@@ -249,7 +253,7 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                     <div style="font-size:.8rem;color:#7C3AED">Préparez votre abonnement pour continuer à vendre sans interruption.</div>
                 </div>
             </div>
-            <a href="<?= SITE_URL ?>/subscribe.php" class="btn btn-primary" style="padding:.5rem 1.25rem;font-size:.85rem">Voir les plans</a>
+            <a href="<?= SITE_URL ?>/dashboard.php?section=abonnement" class="btn btn-primary" style="padding:.5rem 1.25rem;font-size:.85rem">Souscrire</a>
         </div>
         <?php endif; ?>
 
@@ -484,7 +488,7 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                         <td><?= date('d/m/Y H:i', strtotime($order['created_at'])) ?></td>
                         <td>
                             <div style="font-size:.78rem;color:var(--gray-500)">
-                                📍 <?= escape($order['city']) ?>
+                                📍 <?= escape($order['delivery_address'] ?? '—') ?>
                             </div>
                         </td>
                     </tr>
@@ -561,6 +565,15 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                         $tCaption = trim($uploadedCaptions[$i] ?? '');
                         $pdo->prepare("INSERT INTO product_testimonials (product_id, file_name, file_type, caption, sort_order) VALUES (?,?,?,?,?)")
                             ->execute([$newProductId, $tFile, $tType, $tCaption, $i]);
+                    }
+
+                    // Images galerie (uploadées via AJAX)
+                    $galleryFiles = $_POST['uploaded_gallery_images'] ?? [];
+                    foreach ($galleryFiles as $idx => $gFile) {
+                        $gFile = basename(trim($gFile));
+                        if (!$gFile || !file_exists(__DIR__ . '/uploads/products/' . $gFile)) continue;
+                        $pdo->prepare("INSERT INTO product_images (product_id, file_name, sort_order) VALUES (?,?,?)")
+                            ->execute([$newProductId, $gFile, $idx]);
                     }
 
                     setFlash('success', 'Produit "' . $pName . '" ajouté avec succès !');
@@ -663,6 +676,21 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                                     </div>
                                 </div>
                                 <p style="font-size:.75rem;color:var(--gray-500);margin-top:.5rem">Recommandé : carré 800×800 px minimum.</p>
+
+                                <!-- Galerie d'images -->
+                                <label class="form-label" style="margin-top:1rem">Photos galerie <span style="font-size:.75rem;color:var(--gray-500)">(défilent en slider)</span></label>
+                                <div id="galleryDropZone"
+                                     style="border:2px dashed var(--gray-200);border-radius:var(--radius-sm);padding:1rem;text-align:center;cursor:pointer;background:var(--gray-50);transition:border-color .2s"
+                                     onclick="document.getElementById('galleryFileInput').click()"
+                                     ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+                                     ondragleave="this.style.borderColor='var(--gray-200)'"
+                                     ondrop="handleGalleryDrop(event)">
+                                    <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="handleGalleryFiles(this.files)">
+                                    <div style="font-size:1.5rem;margin-bottom:.3rem">🖼️</div>
+                                    <div style="font-size:.8rem;color:var(--gray-500)">Ajouter des photos (plusieurs à la fois)</div>
+                                </div>
+                                <div id="galleryPreviewGrid" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem"></div>
+                                <div id="galleryHiddenInputs"></div>
                             </div>
                         </div>
                     </div>
@@ -865,6 +893,28 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                             ->execute([$editId, $tFile, $tType, $tCaption, $order++]);
                     }
 
+                    // Supprimer images galerie cochées
+                    $delGallery = $_POST['delete_gallery_images'] ?? [];
+                    foreach ($delGallery as $gid) {
+                        $gRow = $pdo->prepare("SELECT file_name FROM product_images WHERE id = ? AND product_id = ?");
+                        $gRow->execute([(int)$gid, $editId]);
+                        $gData = $gRow->fetch();
+                        if ($gData) {
+                            @unlink(__DIR__ . '/uploads/products/' . $gData['file_name']);
+                            $pdo->prepare("DELETE FROM product_images WHERE id = ?")->execute([(int)$gid]);
+                        }
+                    }
+
+                    // Nouvelles images galerie
+                    $galleryFiles = $_POST['uploaded_gallery_images'] ?? [];
+                    $gOrder = count($existingGallery ?? []);
+                    foreach ($galleryFiles as $idx => $gFile) {
+                        $gFile = basename(trim($gFile));
+                        if (!$gFile || !file_exists(__DIR__ . '/uploads/products/' . $gFile)) continue;
+                        $pdo->prepare("INSERT INTO product_images (product_id, file_name, sort_order) VALUES (?,?,?)")
+                            ->execute([$editId, $gFile, $gOrder + $idx]);
+                    }
+
                     setFlash('success', 'Produit mis à jour !');
                     redirect(SITE_URL . '/dashboard.php?section=products');
                 }
@@ -969,6 +1019,39 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                                     </div>
                                 </div>
                                 <p style="font-size:.75rem;color:var(--gray-500);margin-top:.5rem">Laisser vide pour conserver l'actuelle.</p>
+
+                                <!-- Galerie d'images (edit) -->
+                                <?php
+                                $existingGallery = $pdo->prepare("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order");
+                                $existingGallery->execute([$editId]);
+                                $existingGallery = $existingGallery->fetchAll();
+                                ?>
+                                <label class="form-label" style="margin-top:1rem">Photos galerie <span style="font-size:.75rem;color:var(--gray-500)">(défilent en slider)</span></label>
+                                <?php if (!empty($existingGallery)): ?>
+                                <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem">
+                                    <?php foreach ($existingGallery as $gi): ?>
+                                    <div style="position:relative;width:70px;height:70px">
+                                        <img src="<?= getProductImageUrl($gi['file_name']) ?>" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1.5px solid var(--gray-200)">
+                                        <label style="position:absolute;top:-5px;right:-5px;background:#EF4444;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.65rem;cursor:pointer;line-height:1">
+                                            <input type="checkbox" name="delete_gallery_images[]" value="<?= $gi['id'] ?>" style="display:none">×
+                                        </label>
+                                    </div>
+                                    <?php endforeach; ?>
+                                    <div style="font-size:.72rem;color:var(--gray-400);align-self:flex-end;padding-bottom:.3rem">Cocher × pour supprimer</div>
+                                </div>
+                                <?php endif; ?>
+                                <div id="galleryDropZone"
+                                     style="border:2px dashed var(--gray-200);border-radius:var(--radius-sm);padding:1rem;text-align:center;cursor:pointer;background:var(--gray-50);transition:border-color .2s"
+                                     onclick="document.getElementById('galleryFileInput').click()"
+                                     ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+                                     ondragleave="this.style.borderColor='var(--gray-200)'"
+                                     ondrop="handleGalleryDrop(event)">
+                                    <input type="file" id="galleryFileInput" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="handleGalleryFiles(this.files)">
+                                    <div style="font-size:1.5rem;margin-bottom:.3rem">🖼️</div>
+                                    <div style="font-size:.8rem;color:var(--gray-500)">Ajouter des photos (plusieurs à la fois)</div>
+                                </div>
+                                <div id="galleryPreviewGrid" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem"></div>
+                                <div id="galleryHiddenInputs"></div>
                             </div>
                         </div>
                     </div>
@@ -1270,23 +1353,8 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
         </div>
 
 
-        <!-- Offre + Formulaire -->
-        <div style="display:grid;grid-template-columns:300px 1fr;gap:2rem;align-items:start">
-
-            <!-- Plan card -->
-            <div style="background:linear-gradient(160deg,#1E1B4B 0%,#7C3AED 60%,#EC4899 100%);border-radius:var(--radius-lg);padding:2rem;color:white">
-                <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:.5rem">Plan mensuel</div>
-                <div style="font-size:3rem;font-weight:900;line-height:1">3 000</div>
-                <div style="font-size:.9rem;opacity:.75;margin-bottom:1.5rem">FCFA / mois &nbsp;<span style="font-size:.75rem;opacity:.5">≈ 5 $</span></div>
-                <ul style="list-style:none;padding:0;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:.6rem">
-                    <?php foreach (['Produits illimités','Commandes illimitées','Dashboard complet','Statistiques de vente','Témoignages & médias','Support prioritaire'] as $f): ?>
-                    <li style="font-size:.84rem;display:flex;align-items:center;gap:.5rem;opacity:.9"><span style="color:#A78BFA">✓</span> <?= $f ?></li>
-                    <?php endforeach; ?>
-                </ul>
-                <div style="border-top:1px solid rgba(255,255,255,.15);padding-top:.85rem;font-size:.74rem;opacity:.55;line-height:1.6">
-                    10 premières commandes gratuites. Aucune carte requise pour l'essai.
-                </div>
-            </div>
+        <!-- Paiement -->
+        <div style="max-width:520px">
 
             <!-- Paiement -->
             <div style="background:white;border-radius:var(--radius-lg);border:1.5px solid var(--gray-100);overflow:hidden">
@@ -1373,7 +1441,7 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                     <td style="padding:.75rem 1rem;font-size:.83rem"><?= match($cp['payment_method']){
                         'wave'=>'📱 Wave','orange_money'=>'🟠 Orange Money','card'=>'💳 Carte', default=>$cp['payment_method']
                     } ?></td>
-                    <td style="padding:.75rem 1rem;font-size:.78rem;color:var(--gray-500)"><?= escape($cp['payment_reference']) ?></td>
+                    <td style="padding:.75rem 1rem;font-size:.78rem;color:var(--gray-500)"><?= escape($cp['payment_reference'] ?? '—') ?></td>
                     <td style="padding:.75rem 1rem;font-size:.78rem;color:var(--gray-500)">
                         <?= date('d/m/Y', strtotime($cp['period_start'])) ?> → <?= date('d/m/Y', strtotime($cp['period_end'])) ?>
                     </td>
@@ -1599,8 +1667,13 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
                 <div class="form-group">
                     <label class="form-label">URL de votre boutique</label>
                     <div style="display:flex;align-items:center;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);overflow:hidden">
-                        <span style="padding:.7rem 1rem;background:var(--gray-100);color:var(--gray-500);font-size:.9rem;border-right:1px solid var(--gray-300)">wecanshop.com/</span>
-                        <input type="text" value="<?= escape($store['slug']) ?>" class="form-control" style="border:none" readonly>
+                        <input type="text" id="storeUrlInput"
+                               value="<?= escape(SITE_URL . '/shop.php?store=' . $store['slug']) ?>"
+                               class="form-control" style="border:none;color:var(--primary);font-size:.88rem" readonly>
+                        <button type="button" onclick="copyStoreUrl()" id="copyUrlBtn"
+                                style="flex-shrink:0;padding:.7rem 1rem;background:var(--primary);color:white;border:none;cursor:pointer;font-size:.82rem;font-weight:700;white-space:nowrap;transition:background .2s">
+                            📋 Copier
+                        </button>
                     </div>
                 </div>
                 <div style="display:flex;justify-content:flex-end">
@@ -1614,6 +1687,17 @@ if ($sub['sub_status'] === 'active' && $sub['sub_end_date'] && $sub['sub_end_dat
 
 <script>
 const siteUrl = "<?= SITE_URL ?>";
+
+// ---- Copier l'URL de la boutique ----
+function copyStoreUrl() {
+    const input = document.getElementById('storeUrlInput');
+    navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.getElementById('copyUrlBtn');
+        btn.textContent = '✅ Copié !';
+        btn.style.background = '#10B981';
+        setTimeout(() => { btn.textContent = '📋 Copier'; btn.style.background = ''; }, 2000);
+    });
+}
 
 // ---- Abonnement : QR Code ----
 function showQR() {
@@ -2039,6 +2123,52 @@ function aiApplyAll() {
     if (aiName && nameEl && !nameEl.value) nameEl.value = aiName;
     closeAiPanel();
     showToast('Tout le contenu a été appliqué ✅');
+}
+
+// ===== GALERIE D'IMAGES =====
+function handleGalleryFiles(files) {
+    Array.from(files).forEach(file => uploadGalleryImage(file));
+    document.getElementById('galleryFileInput').value = '';
+}
+function handleGalleryDrop(e) {
+    e.preventDefault();
+    document.getElementById('galleryDropZone').style.borderColor = 'var(--gray-200)';
+    handleGalleryFiles(e.dataTransfer.files);
+}
+async function uploadGalleryImage(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const previewGrid = document.getElementById('galleryPreviewGrid');
+    // Placeholder
+    const placeholder = document.createElement('div');
+    placeholder.style.cssText = 'width:64px;height:64px;border-radius:8px;background:var(--gray-100);display:flex;align-items:center;justify-content:center;font-size:1.2rem;border:1.5px dashed var(--gray-300)';
+    placeholder.textContent = '⏳';
+    previewGrid.appendChild(placeholder);
+
+    try {
+        const res = await fetch('<?= SITE_URL ?>/api/upload_gallery_image.php', { method:'POST', body:fd });
+        const data = await res.json();
+        if (!data.success) { placeholder.textContent = '❌'; return; }
+
+        // Remplacer placeholder par aperçu
+        placeholder.innerHTML = `<img src="${data.url}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--gray-200)">
+            <span onclick="removeGalleryItem(this,'${data.filename}')" style="position:absolute;top:-5px;right:-5px;background:#EF4444;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.65rem;cursor:pointer;line-height:1">×</span>`;
+        placeholder.style.cssText = 'width:64px;height:64px;border-radius:8px;position:relative';
+
+        // Champ caché
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'uploaded_gallery_images[]';
+        hidden.value = data.filename;
+        hidden.dataset.filename = data.filename;
+        document.getElementById('galleryHiddenInputs').appendChild(hidden);
+    } catch(e) { placeholder.textContent = '❌'; }
+}
+function removeGalleryItem(btn, filename) {
+    btn.closest('div').remove();
+    document.querySelectorAll('[name="uploaded_gallery_images[]"]').forEach(inp => {
+        if (inp.dataset.filename === filename) inp.remove();
+    });
 }
 </script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

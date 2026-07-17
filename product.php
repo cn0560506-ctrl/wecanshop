@@ -21,6 +21,11 @@ if (!$product) { header('Location: ' . SITE_URL . '/index.php'); exit; }
 // Increment views
 $pdo->prepare("UPDATE products SET views = views + 1 WHERE id = ?")->execute([$id]);
 
+// Gallery images
+$galleryStmt = $pdo->prepare("SELECT file_name FROM product_images WHERE product_id = ? ORDER BY sort_order");
+$galleryStmt->execute([$id]);
+$galleryImages = $galleryStmt->fetchAll(PDO::FETCH_COLUMN);
+
 // Testimonials
 $testimonialsStmt = $pdo->prepare("SELECT * FROM product_testimonials WHERE product_id = ? ORDER BY sort_order");
 $testimonialsStmt->execute([$id]);
@@ -55,13 +60,74 @@ $pageDesc = substr(strip_tags($product['description']), 0, 150);
     </nav>
 
     <div class="product-detail-grid">
-        <!-- Product Image -->
+        <!-- Product Image / Slider -->
         <div>
-            <div class="product-main-image" id="mainImageWrap">
-                <img id="mainProductImage"
-                     src="<?= getProductImageUrl($product['image']) ?>"
-                     alt="<?= escape($product['name']) ?>">
+            <?php
+            // Construire la liste complète : image principale + galerie
+            $allSlides = [];
+            if ($product['image']) $allSlides[] = getProductImageUrl($product['image']);
+            foreach ($galleryImages as $gImg) $allSlides[] = getProductImageUrl($gImg);
+            $hasSlider = count($allSlides) > 1;
+            ?>
+            <div style="position:relative;user-select:none">
+                <!-- Slide principal -->
+                <div class="product-main-image" id="mainImageWrap" style="overflow:hidden;position:relative">
+                    <img id="mainProductImage"
+                         src="<?= $allSlides[0] ?>"
+                         alt="<?= escape($product['name']) ?>"
+                         style="transition:opacity .25s;width:100%;display:block">
+                    <?php if ($hasSlider): ?>
+                    <button onclick="slideGallery(-1)" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.45);color:white;border:none;border-radius:50%;width:36px;height:36px;font-size:1.1rem;cursor:pointer;line-height:1;z-index:2">‹</button>
+                    <button onclick="slideGallery(1)"  style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.45);color:white;border:none;border-radius:50%;width:36px;height:36px;font-size:1.1rem;cursor:pointer;line-height:1;z-index:2">›</button>
+                    <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:5px" id="slideDots">
+                        <?php foreach ($allSlides as $si => $_): ?>
+                        <div class="slide-dot <?= $si===0?'active':'' ?>" onclick="goToSlide(<?= $si ?>)" style="width:7px;height:7px;border-radius:50%;background:<?= $si===0?'white':'rgba(255,255,255,.5)' ?>;cursor:pointer;transition:background .2s"></div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Miniatures -->
+                <?php if ($hasSlider): ?>
+                <div style="display:flex;gap:.5rem;margin-top:.6rem;overflow-x:auto;padding-bottom:.25rem" id="thumbStrip">
+                    <?php foreach ($allSlides as $si => $url): ?>
+                    <img src="<?= $url ?>" onclick="goToSlide(<?= $si ?>)"
+                         id="thumb_<?= $si ?>"
+                         style="width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:2.5px solid <?= $si===0?'var(--primary)':'var(--gray-200)' ?>;flex-shrink:0;transition:border-color .2s"
+                         alt="">
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
             </div>
+
+            <?php if ($hasSlider): ?>
+            <script>
+            const slides = <?= json_encode($allSlides) ?>;
+            let currentSlide = 0;
+            let touchStartX = 0;
+
+            function goToSlide(n) {
+                currentSlide = (n + slides.length) % slides.length;
+                const img = document.getElementById('mainProductImage');
+                img.style.opacity = '0';
+                setTimeout(() => { img.src = slides[currentSlide]; img.style.opacity = '1'; }, 150);
+                document.querySelectorAll('.slide-dot').forEach((d,i) => {
+                    d.style.background = i === currentSlide ? 'white' : 'rgba(255,255,255,.5)';
+                });
+                document.querySelectorAll('#thumbStrip img').forEach((t,i) => {
+                    t.style.borderColor = i === currentSlide ? 'var(--primary)' : 'var(--gray-200)';
+                });
+            }
+            function slideGallery(dir) { goToSlide(currentSlide + dir); }
+
+            // Swipe mobile
+            document.getElementById('mainImageWrap').addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive:true});
+            document.getElementById('mainImageWrap').addEventListener('touchend', e => {
+                const diff = touchStartX - e.changedTouches[0].clientX;
+                if (Math.abs(diff) > 40) slideGallery(diff > 0 ? 1 : -1);
+            }, {passive:true});
+            </script>
+            <?php endif; ?>
         </div>
 
         <!-- Product Info -->
@@ -175,7 +241,6 @@ $pageDesc = substr(strip_tags($product['description']), 0, 150);
                             <video src="<?= SITE_URL ?>/uploads/testimonials/<?= escape($t['file_name']) ?>"
                                    preload="metadata" muted
                                    style="width:100%;height:110px;object-fit:cover;display:block;pointer-events:none;background:#1a1a2e"></video>
-                            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;background:rgba(124,58,237,.85);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;pointer-events:none">▶</div>
                         <?php else: ?>
                             <img src="<?= SITE_URL ?>/uploads/testimonials/<?= escape($t['file_name']) ?>"
                                  alt="<?= escape($t['caption'] ?? 'Témoignage') ?>"
